@@ -19,3 +19,88 @@ library(onewaytests)
 penguins <- read_csv("penguins.csv")
 ```
 
+Our question:
+
+Is there a significant difference in mean flipper length for female penguins by species (Chinstrap, Gentoo, Adelie)?
+
+2. Do some exploring
+
+New functions: with + table for easy counting over multiple factors
+
+Update species name using case_when
+
+
+```{r}
+counts <- with(penguins, table(species,sex))
+
+penguins2 <- penguins %>%
+  mutate(common_name = 
+           case_when(
+    species == "Chinstrap penguin (Pygoscelis antarctica)"~ "Chinstrap",
+    species == "Gentoo penguin (Pygoscelis papua)"~ "Gentoo", 
+    species == "Adelie Penguin (Pygoscelis adeliae)" ~ "Adelie"
+  )) %>% 
+  filter(sex == "FEMALE")
+```
+
+
+```{r}
+hists <- ggplot(penguins2, aes(x = flipper_length))+
+  geom_histogram(aes(fill = common_name))+
+  facet_wrap(~common_name)
+
+hists
+
+qqs <- ggplot(penguins2, aes(sample = flipper_length))+
+  geom_qq()+
+  facet_wrap(~ common_name)
+
+qqs
+
+#Levene's test for equal variances (>2 groups...if you have two groups use F-test)
+
+#We'll use the function leveneTest from the 'car' package
+
+#H0: Variances are equal
+#HA: variances are unequal
+
+penguin_levene <- leveneTest(flipper_length ~ common_name, data = penguins2)
+penguin_levene
+
+#We retain the null hypothesis 
+
+variance_table <- penguins2 %>%
+  group_by(common_name) %>% 
+  summarize(variance =  var(flipper_length))
+
+variance_table
+```
+
+3. One -way ANOVA
+
+single factor: common_name (species)
+number of levels in the factor: 3 (chinstrap, gentoo, adelie)
+random variable: flipper_length (mm)
+
+Is there a significant difference in mean flipper length (mm) for female Chinstrap, Gentoo and Adelie penguins?
+
+```{r}
+#H0: mean flipper lengths between species are not different
+#HA: mean flipper lengths between at least 2 species are significantly different 
+penguin_aov <- aov(flipper_length ~ common_name, data = penguins2)
+
+summary(penguin_aov)
+
+#If the null hypothesis is true, there is an almost 0 percent chance that we would have found means at least this different by chance. 
+#Conclusion: at least two samples were taken from populations with different means.
+
+#Suitable for publication: There is a significant difference in flipper lenght based on species
+
+#Which ones are different? All three or something else?
+#Post-hoc testing using Tukey's HSD
+
+penguin_ph <- TukeyHSD(penguin_aov)
+penguin_ph
+```
+
+Mean flipper lengths for Adelie, Gentoo, and Chinstrap penguins are all significantly different (F(df) = statistic, p<0.001, $\alpha = 0.05$ with post-hoc Tukey's HSD, $\alpha=0.05$)
